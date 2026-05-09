@@ -1,5 +1,5 @@
 /**
- * @file EPD_config.c
+ * @file EPD_config_annotated.c
  * @brief EPD配置管理模块 - 带详细中文注释版本
  * 
  * 本模块负责EPD(电子墨水屏)配置的持久化存储，使用Nordic的FDS(Flash Data Storage)库
