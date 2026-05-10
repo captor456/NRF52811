@@ -32,4 +32,4 @@ jobs:
         echo "SDK_ROOT=$(pwd)/nRF5_SDK" >> $GITHUB_ENV
 
     - name: Build firmware
-      run: make -C ./nrf52811.hex
+      run: make -C path/to/your/project
