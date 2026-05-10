@@ -1,4 +1,4 @@
-name: Build nRF52811 Firmware
+name: Build
 on:
   push:
     branches:
