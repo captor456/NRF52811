@@ -23,7 +23,7 @@ jobs:
 
     - name: Download Nordic SDK and tools
       run: |
-        wget https://developer.nordicsemi.com/nRF5_SDK/nRF5_SDK_v17.0.2_d674dde.zip -O sdk.zip && \
+        wget https://files.nordicsemi.com/artifactory/nRF5-SDK/external/nRF5_SDK_v17.x.x/nRF5_SDK_17.0.2_d674dde.zip -O sdk.zip && \
         unzip sdk.zip -d nRF5_SDK && \
         rm sdk.zip
 
