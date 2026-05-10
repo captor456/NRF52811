@@ -26,7 +26,6 @@ jobs:
     - name: Set environment variables
       run: |
         echo "SDK_ROOT=$(pwd)/nRF5_SDK" >> $GITHUB_ENV
-
     - name: Build firmware
       run: make -C
       - uses: actions/upload-artifact@v4
