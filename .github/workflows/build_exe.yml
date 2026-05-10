@@ -1,4 +1,4 @@
-name: Build
+name: Build exe
 
 on:
   push:
@@ -17,7 +17,7 @@ jobs:
           install: >-
             make
             mingw-w64-x86_64-gcc
-      - name: Build
+      - name: Build exe
         run: make
       - uses: actions/upload-artifact@v4
         with:
