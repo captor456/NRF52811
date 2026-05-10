@@ -1,0 +1,35 @@
+name: Build nRF52811 Firmware
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Install GNU Arm Embedded Toolchain
+      run: |
+        sudo apt-get update && \
+        sudo apt-get install gcc-arm-none-eabi
+
+    - name: Download Nordic SDK and tools
+      run: |
+        wget https://developer.nordicsemi.com/nRF5_SDK/nRF5_SDK_v17.0.2_d674dde.zip -O sdk.zip && \
+        unzip sdk.zip -d nRF5_SDK && \
+        rm sdk.zip
+
+    - name: Set environment variables
+      run: |
+        echo "SDK_ROOT=$(pwd)/nRF5_SDK" >> $GITHUB_ENV
+
+    - name: Build firmware
+      run: make -C path/to/your/project
