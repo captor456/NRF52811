@@ -41,27 +41,3 @@ jobs:
             _build/*.hex
             _build/*.bin
             _build/*.out
-
-  build-emulator:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install MSYS2 and tools
-        uses: msys2/setup-msys2@v2
-        with:
-          update: true
-          install: >-
-            make
-            mingw-w64-x86_64-gcc
-
-      - name: Build emulator
-        run: make
-        shell: msys2 {0}
-
-      - name: Upload emulator artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: emulator
-          path: emulator.exe
