@@ -1,0 +1,44 @@
+name: Build nRF52811 Firmware
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-nrf52:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install ARM toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-none-eabi binutils-arm-none-eabi
+
+      - name: Check toolchain version
+        run: arm-none-eabi-gcc --version
+
+      - name: Build nRF52811 firmware
+        run: make
+        env:
+          GNU_INSTALL_ROOT: /usr/bin/
+          PREFIX: arm-none-eabi-
+
+      - name: List build output
+        run: ls -la _build/
+
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nrf52811-firmware
+          path: |
+            _build/*.hex
+            _build/*.bin
+            _build/*.out
+
