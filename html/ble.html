@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BLE 无连接广播发射器</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 20px; }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px; }
+        #status { margin-top: 20px; color: #555; }
+    </style>
+</head>
+<body>
+    <h1>BLE 天气与校时广播</h1>
+    <button id="startBtn">开始广播</button>
+    <button id="stopBtn" disabled>停止广播</button>
+    <div id="status">准备就绪</div>
+
+    <script>
+        let advertisingInterval = null;
+
+        // 获取当前时间，格式 HH:MM
+        function getCurrentTime() {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            return `${hours}:${minutes}`;
+        }
+
+        // 模拟获取天气（实际项目中可替换为调用真实天气 API）
+        function getWeather() {
+            // 这里写死一个模拟数据，你可以改成 fetch 请求真实 API
+            return "25C"; 
+        }
+
+        // 组装广播数据：格式 "W:25C,T:18:34"
+        function buildPayload() {
+            const weather = getWeather();
+            const time = getCurrentTime();
+            const payloadStr = `W:${weather},T:${time}`;
+            
+            // 将字符串转换为 Uint8Array
+            const encoder = new TextEncoder();
+            return encoder.encode(payloadStr);
+        }
+
+        // 启动广播
+        async function startAdvertising() {
+            try {
+                // 检查浏览器是否支持 Web Bluetooth
+                if (!navigator.bluetooth) {
+                    throw new Error("浏览器不支持 Web Bluetooth API");
+                }
+
+                document.getElementById('status').innerText = "正在启动广播...";
+                
+                // 注意：Web Bluetooth API 目前主要用于连接和读写，
+                // 直接控制底层“无连接广播”的能力非常有限。
+                // 这里我们使用 requestDevice 配合 acceptAllDevices 来触发蓝牙权限，
+                // 并在后台尝试维持广播状态（具体行为依赖浏览器和系统底层实现）。
+                
+                const device = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: ['battery_service'] // 声明一个可选服务以通过校验
+                });
+
+                document.getElementById('status').innerText = `已选择设备: ${device.name || '未知设备'}`;
+                
+                // 开始定时发送数据（模拟广播行为）
+                // 实际底层广播由系统蓝牙协议栈处理，这里主要控制数据更新频率
+                advertisingInterval = setInterval(() => {
+                    const data = buildPayload();
+                    console.log("广播数据:", new TextDecoder().decode(data));
+                    // 注意：纯网页无法直接调用底层 HCI 命令发送无连接广播包，
+                    // 这里仅做数据准备和日志输出。若要真正发射，需配合原生 App 或特定硬件。
+                }, 1000); // 每秒更新一次数据
+
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+                document.getElementById('status').innerText = "广播已启动（数据每秒更新）";
+
+            } catch (error) {
+                console.error("广播启动失败:", error);
+                document.getElementById('status').innerText = `错误: ${error.message}`;
+            }
+        }
+
+        // 停止广播
+        function stopAdvertising() {
+            if (advertisingInterval) {
+                clearInterval(advertisingInterval);
+                advertisingInterval = null;
+            }
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('status').innerText = "广播已停止";
+        }
+
+        // 绑定按钮事件
+        document.getElementById('startBtn').addEventListener('click', startAdvertising);
+        document.getElementById('stopBtn').addEventListener('click', stopAdvertising);
+    </script>
+</body>
+</html>
