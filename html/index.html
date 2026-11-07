@@ -1,308 +1,588 @@
-<!doctype html>
-<html lang="en">
-
+<!DOCTYPE html>
+<html lang="zh-CN">
 <head>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>墨水屏日历</title>
-	<link rel="shortcut icon" type="image/png" href="favicon.png">
-	<link rel="stylesheet" href="css/main.css?v=20251109">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DA14585 墨水屏时钟 - 上位机</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #333; padding: 16px; }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 20px; font-size: 24px; color: #1a1a2e; }
+        .card { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .card h2 { font-size: 16px; color: #555; margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+
+        /* BLE连接区 */
+        .ble-status { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .ble-status span { font-size: 14px; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #ccc; display: inline-block; }
+        .status-dot.connected { background: #4caf50; }
+        .status-dot.error { background: #f44336; }
+        button { padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: background 0.2s; }
+        .btn-primary { background: #3f51b5; color: #fff; }
+        .btn-primary:hover { background: #303f9f; }
+        .btn-primary:disabled { background: #9fa8da; cursor: not-allowed; }
+        .btn-danger { background: #f44336; color: #fff; }
+        .btn-danger:hover { background: #d32f2f; }
+        .btn-success { background: #4caf50; color: #fff; }
+        .btn-success:hover { background: #388e3c; }
+        .btn-secondary { background: #607d8b; color: #fff; }
+        .btn-secondary:hover { background: #455a64; }
+        .btn-warning { background: #ff9800; color: #fff; }
+        .btn-warning:hover { background: #f57c00; }
+
+        /* 设备控制 */
+        .mode-buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+        .mode-buttons button { flex: 1; min-width: 120px; }
+        .mode-buttons button.active { background: #1a237e; color: #fff; }
+
+        /* 图片上传 */
+        .upload-area { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+        .upload-left { flex: 1; min-width: 280px; }
+        .upload-right { flex: 1; min-width: 280px; }
+        .upload-left label { display: block; font-size: 13px; color: #666; margin-bottom: 4px; margin-top: 8px; }
+        .upload-left select, .upload-left input[type="range"], .upload-left input[type="number"] { width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; }
+        .canvas-container { background: #fff; border: 2px dashed #ccc; border-radius: 8px; display: flex; align-items: center; justify-content: center; min-height: 200px; position: relative; overflow: hidden; }
+        .canvas-container canvas { max-width: 100%; image-rendering: pixelated; }
+        .canvas-container .placeholder { color: #aaa; font-size: 14px; text-align: center; padding: 40px; }
+
+        /* 日志 */
+        .log-area { background: #1e1e1e; color: #d4d4d4; border-radius: 8px; padding: 12px; font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; max-height: 200px; overflow-y: auto; line-height: 1.6; }
+        .log-area .info { color: #9cdcfe; }
+        .log-area .success { color: #6a9955; }
+        .log-area .error { color: #f44747; }
+        .log-area .warn { color: #dcdcaa; }
+
+        /* 进度条 */
+        .progress-bar { width: 100%; height: 6px; background: #e0e0e0; border-radius: 3px; margin-top: 8px; display: none; }
+        .progress-bar .fill { height: 100%; background: #3f51b5; border-radius: 3px; transition: width 0.1s; width: 0%; }
+
+        /* 状态信息 */
+        .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+        .info-item { background: #f5f5f5; padding: 8px 12px; border-radius: 6px; font-size: 13px; }
+        .info-item .label { color: #888; }
+        .info-item .value { font-weight: 600; color: #333; }
+
+        .row { display: flex; gap: 12px; align-items: center; margin-top: 8px; }
+        .mt-8 { margin-top: 8px; }
+        .mb-8 { margin-bottom: 8px; }
+        .text-sm { font-size: 13px; color: #888; }
+    </style>
 </head>
-
 <body>
-	<div class="main">
-		<h3>墨水屏日历</h3>
-		<fieldset>
-			<legend>蓝牙连接</legend>
-			<div class="flex-container">
-				<div class="flex-group">
-					<button id="connectbutton" type="button" class="primary" onclick="preConnect()">连接</button>
-					<button id="reconnectbutton" type="button" class="secondary" onclick="reConnect()">重连</button>
-					<button type="button" class="secondary" onclick="clearLog()">清空日志</button>
-				</div>
-				<div class="flex-group right debug">
-					<label for="epddriver">驱动</label>
-					<select id="epddriver" onchange="updateDitcherOptions()">
-					<option value="00" data-color="blackWhiteColor" data-size="4.2_400_300">4.2寸 (自动检测)</option>
-					<option value="01" data-color="blackWhiteColor" data-size="4.2_400_300">4.2寸 (黑白, UC8176)</option>
-					<option value="03" data-color="threeColor" data-size="4.2_400_300">4.2寸 (三色, UC8176)</option>
-					<option value="04" data-color="blackWhiteColor" data-size="4.2_400_300">4.2寸 (黑白, SSD1619)</option>
-					<option value="02" data-color="threeColor" data-size="4.2_400_300">4.2寸 (三色, SSD1619)</option>
-					<option value="05" data-color="fourColor" data-size="4.2_400_300">4.2寸 (四色, JD79668)</option>
-					<option value="16" data-color="blackWhiteColor" data-size="4.2_400_300">4.2寸 (黑白, SSD1683)</option>
-					<option value="17" data-color="threeColor" data-size="4.2_400_300">4.2寸 (三色, SSD1683)</option>
-					<option value="18" data-color="blackWhiteColor" data-size="4.2_400_300">4.2寸 (黑白, SSD1677)</option>
-					<option value="19" data-color="threeColor" data-size="4.2_400_300">4.2寸 (三色, SSD1677)</option>
-					<option value="1a" data-color="blackWhiteColor" data-size="4.2_400_300">4.2寸 (黑白, SSD1688)</option>
-					<option value="1b" data-color="threeColor" data-size="4.2_400_300">4.2寸 (三色, SSD1688)</option>
+<div class="container">
+    <h1>🖥 DA14585 墨水屏时钟</h1>
 
-					<option value="1c" data-color="blackWhiteColor" data-size="5.83_648_480">5.83寸 (黑白, SSD1688)</option>
-					<option value="1d" data-color="threeColor" data-size="5.83_648_480">5.83寸 (三色, SSD1688)</option>
-					<option value="0d" data-color="fourColor" data-size="5.83_648_480">5.83寸 (四色, JD79665)</option>
-				    <option value="0f" data-color="blackWhiteColor" data-size="5.83_600_448">5.83寸低分 (黑白, UC8159)</option>
-					<option value="0e" data-color="threeColor" data-size="5.83_600_448">5.83寸低分 (三色, UC8159)</option>
-					<option value="11" data-color="blackWhiteColor" data-size="5.83_648_480">5.83寸 (黑白, UC8179)</option>
-					<option value="10" data-color="threeColor" data-size="5.83_648_480">5.83寸 (三色, UC8179)</option>
-					
-						
-					<option value="06" data-color="blackWhiteColor" data-size="7.5_800_480">7.5寸 (黑白, UC8179)</option>
-					<option value="07" data-color="threeColor" data-size="7.5_800_480">7.5寸 (三色, UC8179)</option>
-					<option value="0c" data-color="fourColor" data-size="7.5_800_480">7.5寸 (四色, JD79665)</option>
-					<option value="1e" data-color="blackWhiteColor" data-size="7.5_800_480">7.5寸 (黑白, SSD1688)</option>
-					<option value="1f" data-color="threeColor" data-size="7.5_800_480">7.5寸 (三色, SSD1688)</option>
-					<option value="08" data-color="blackWhiteColor" data-size="7.5_640_384">7.5寸低分 (黑白, UC8159)</option>
-					<option value="09" data-color="threeColor" data-size="7.5_640_384">7.5寸低分 (三色, UC8159)</option>
-					<option value="0a" data-color="blackWhiteColor" data-size="7.5_880_528">7.5寸HD (黑白, SSD1677)</option>
-					<option value="0b" data-color="threeColor" data-size="7.5_880_528">7.5寸HD (三色, SSD1677)</option>
+    <!-- BLE连接 -->
+    <div class="card">
+        <h2>📡 蓝牙连接</h2>
+        <div class="ble-status">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">未连接</span>
+            <button class="btn-primary" id="btnConnect" onclick="connectBLE()">连接设备</button>
+            <button class="btn-danger" id="btnDisconnect" onclick="disconnectBLE()" style="display:none">断开</button>
+        </div>
+        <div class="info-grid mt-8" id="deviceInfo" style="display:none">
+            <div class="info-item"><span class="label">固件版本: </span><span class="value" id="fwVersion">-</span></div>
+            <div class="info-item"><span class="label">MTU: </span><span class="value" id="mtuSize">-</span></div>
+            <div class="info-item"><span class="label">设备时间: </span><span class="value" id="devTime">-</span></div>
+        </div>
+    </div>
 
-					<option value="12" data-color="blackWhiteColor" data-size="2.9_128_296">2.9寸 (黑白, SSD1680)</option>
-					<option value="13" data-color="threeColor" data-size="2.9_128_296">2.9寸 (三色, SSD1680)</option>
-					<option value="32" data-color="blackWhiteColor" data-size="2.9_168_384">2.9寸H(黑白, SSD1683)</option>
-					<option value="33" data-color="threeColor" data-size="2.9_168_384">2.9寸H (三色, SSD1683)</option>	
-					<option value="14" data-color="blackWhiteColor" data-size="2.9_128_296">2.9寸 (三色, IL3829)</option>
-					<option value="15" data-color="threeColor" data-size="2.9_128_296">2.9寸 (三色,  IL3829)</option>
+    <!-- 设备控制 -->
+    <div class="card">
+        <h2>🎮 设备控制</h2>
+        <div class="mode-buttons">
+            <button class="btn-primary" onclick="setMode(1)">📅 日历模式</button>
+            <button class="btn-primary" onclick="setMode(2)">🕐 时钟模式</button>
+            <button class="btn-secondary" onclick="clearScreen()">🧹 清除屏幕</button>
+            <button class="btn-warning" onclick="resetDevice()">🔄 重启设备</button>
+        </div>
+        <div class="row">
+            <button class="btn-success" onclick="syncTime(2)">⏰ 同步时间 (时钟模式)</button>
+            <button class="btn-success" onclick="syncTime(1)">📆 同步时间 (日历模式)</button>
+        </div>
+    </div>
 
-					<option value="30" data-color="blackWhiteColor" data-size="2.66_152_296">2.66寸 (黑白, SSD1680)</option>
-					<option value="31" data-color="threeColor" data-size="2.66_152_296">2.66寸 (三色, SSD1680)</option>
-					<option value="34" data-color="blackWhiteColor" data-size="2.66_184_360">2.66寸H(黑白, SSD1683)</option>
-					<option value="35" data-color="threeColor" data-size="2.66_184_360">2.66寸H (三色, SSD1683)</option>
-						
-					<option value="22" data-color="blackWhiteColor" data-size="2.13_250_122">2.13寸 (黑白, SSD1608)</option>
-					<option value="23" data-color="threeColor" data-size="2.13_250_122">2.13寸 (三色, SSD1608)</option>
+    <!-- 图片上传 -->
+    <div class="card">
+        <h2>🖼 图片传输</h2>
+        <div class="upload-area">
+            <div class="upload-left">
+                <label>选择图片:</label>
+                <input type="file" id="fileInput" accept="image/*" onchange="loadImage(event)">
+                <div class="progress-bar" id="progressBar"><div class="fill" id="progressFill"></div></div>
+                <div class="text-sm mt-8" id="progressText"></div>
 
-					<option value="24" data-color="blackWhiteColor" data-size="2.13_122_250">2.13寸 (黑白, IL3829)</option>
-					<option value="25" data-color="threeColor" data-size="2.13_122_250">2.13寸 (三色, IL3829)</option>
-					<option value="20" data-color="blackWhiteColor" data-size="2.1_104_212">2.13寸 (黑白, SSD1675A)</option>
-					<option value="21" data-color="threeColor" data-size="2.13_104_212">2.13寸 (三色, SSD1675A)</option>
+                <label>画布尺寸:</label>
+                <select id="canvasSize" onchange="updateCanvasSize()">
+                    <option value="250,122">2.13寸 (250×122) SSD1675B</option>
+                    <option value="212,104">2.13寸 (212×104) UC8151D</option>
+                    <option value="264,176">2.7寸 (264×176) IL91874</option>
+                    <option value="152,152">1.54寸 (152×152)</option>
+                    <option value="296,128">2.9寸 (296×128)</option>
+                    <option value="384,168">2.9寸 (384×168)</option>
+                    <option value="400,300">4.2寸 (400×300)</option>
+                </select>
 
-	                <option value="36" data-color="blackWhiteColor" data-size="3.5_184_384">3.5寸 (黑白, UC8176)</option>
-					<option value="37" data-color="threeColor" data-size="3.5_184_384">3.5寸 (三色, UC8176)</option>					
-					<option value="26" data-color="blackWhiteColor" data-size="3.5_240_360">3.5寸 (黑白, SSD1619)</option>
-					<option value="27" data-color="threeColor" data-size="3.5_240_360">3.5寸 (三色, SSD1619)</option>
-					<option value="28" data-color="blackWhiteColor" data-size="3.5_240_360">3.5寸 (黑白, SSD1681)</option>
-					<option value="29" data-color="threeColor" data-size="3.5_240_360">3.5寸 (三色, SSD1681)</option>	
-				    <option value="2a" data-color="blackWhiteColor" data-size="3.5_240_360">3.5寸 (黑白, SSD1683)</option>
-					<option value="2b" data-color="threeColor" data-size="3.5_240_360">3.5寸 (三色, SSD1683)</option>						
-				    <option value="2c" data-color="blackWhiteColor" data-size="3.5_320_480">3.5寸 (黑白, SSD1677)</option>
-					<option value="2d" data-color="threeColor" data-size="3.5_320_480">3.5寸 (三色, SSD1677)</option>	
-				    <option value="2e" data-color="blackWhiteColor" data-size="3.5_320_480">3.5寸 (黑白, SSD1680)</option>
-					<option value="2f" data-color="threeColor" data-size="3.5_320_480">3.5寸 (三色, SSD1680)</option>		
-					<option value="38" data-color="blackWhiteColor" data-size="3.5_360_600">3.5寸 (黑白, UC8159)</option>
-					<option value="39" data-color="threeColor" data-size="3.5_360_600">3.5寸 (三色, UC8159)</option>	
-				</select>
-				</div>
-				<div class="flex-group debug">
-					<label for="epdpins">引脚</label>
-					<input id="epdpins" type="text" value="">
-					<button id="setDriverbutton" type="button" class="primary" onclick="setDriver()">确定</button>
-				</div>
-			</div>
-			<div class="log-container" id="log"></div>
-		</fieldset>
-		<fieldset>
-			<legend>设备控制</legend>
-			<div class="flex-container">
-				<div class="flex-group">
-					<button id="calendarmodebutton" type="button" class="primary" onclick="syncTime(1)">日历模式</button>
-					<button id="clockmodebutton" type="button" class="primary" onclick="syncTime(2)">时钟模式</button>
-					<button id="clearscreenbutton" type="button" class="secondary" onclick="clearScreen()">清除屏幕</button>
-				</div>
-				<div class="flex-group right debug">
-					<input type="text" id="cmdTXT" value="">
-					<button id="sendcmdbutton" type="button" class="primary" onclick="sendcmd()">发送命令</button>
-				</div>
-			</div>
-		</fieldset>
-		<fieldset>
-			<legend>蓝牙传图</legend>
-			<div class="flex-container">
-				<input type="file" id="imageFile" accept=".png,.jpg,.bmp,.webp,.jpeg" onchange="updateImage()">
-			</div>
-			<div class="flex-container options">
-				<div class="flex-group debug">
-					<label for="canvasSize">画布尺寸:</label>
-					<select id="canvasSize" onchange="updateCanvasSize()">
-						<option value="1.54_152_152">1.54 (152x152)</option>
-						<option value="1.54_200_200">1.54 (200x200)</option>
-						<option value="2.13_104_212">2.13 (104x212)</option>
-						<option value="2.13_122_250">2.13 (122x250)</option>
-						<option value="2.66_152_296">2.66 (152x296)</option>
-						<option value="2.66_184_360">2.66 (184x360)</option>
-						<option value="2.9_128_296">2.9 (128x296)</option>
-						<option value="2.9_168_384">2.9 (168x384)</option>
-						<option value="3.5_184_384">3.5 (184x384)</option>
-						<option value="3.5_360_600">3.5 (360x600)</option>
-						<option value="3.7_240_416">3.7 (240x416)</option>
-						<option value="3.7_280_480">3.7 (280x480)</option>
-						<option value="3.97_800_480">3.97 (800x480)</option>
-						<option value="3.98_768_552">3.98 (768x552)</option>
-						<option value="4.2_400_300" selected>4.2 (400x300)</option>
-						<option value="5.79_792_272">5.79 (792x272)</option>
-						<option value="5.83_600_448">5.83 (600x448)</option>
-						<option value="5.83_648_480">5.83 (648x480)</option>
-						<option value="7.5_640_384">7.5 (640x384)</option>
-						<option value="7.5_800_480">7.5 (800x480)</option>
-						<option value="7.5_880_528">7.5 (880x528)</option>
-						<option value="10.2_960_640">10.2 (960x640)</option>
-						<option value="10.85_1360_480">10.85 (1360x480)</option>
-						<option value="11.6_960_640">11.6 (960x640)</option>
-						<option value="4.0E6_600_400">4.0E6 (600x400)</option>
-						<option value="7.3E6_800_480">7.3E6 (800x480)</option>
-					</select>
-				</div>
-				<div class="flex-group debug">
-					<label for="ditherMode">颜色模式:</label>
-					<select id="ditherMode" onchange="applyDither()">
-						<option value="blackWhiteColor">双色(黑白)</option>
-						<option value="threeColor">三色(黑白红)</option>
-						<option value="fourColor">四色(黑白红黄)</option>
-						<option value="sixColor">六色(黑白红黄蓝绿)</option>
-					</select>
-				</div>
-				<div class="flex-group">
-					<label for="ditherAlg">抖动算法:</label>
-					<select id="ditherAlg" onchange="applyDither()">
-						<option value="floydSteinberg">Floyd-Steinberg</option>
-						<option value="atkinson">Atkinson</option>
-						<option value="bayer">Bayer</option>
-						<option value="stucki">Stucki</option>
-						<option value="jarvis">Jarvis-Judice-Ninke</option>
-						<option value="none">无抖动</option>
-					</select>
-				</div>
-				<div class="flex-group">
-					<label for="ditherStrength">抖动强度:</label>
-					<input type="range" min="0" max="5" step="0.1" value="1.0" id="ditherStrength">
-					<label id="ditherStrengthValue">1.0</label>
-				</div>
-				<div class="flex-group">
-					<label for="ditherContrast">对比度:</label>
-					<input type="range" min="0.5" max="2" step="0.1" value="1.2" id="ditherContrast">
-					<label id="ditherContrastValue">1.2</label>
-				</div>
-			</div>
-			<div class="flex-container options">
-				<div class="flex-group debug">
-					<label for="mtusize">MTU:</label>
-					<input type="number" id="mtusize" value="20" min="0" max="255">
-					<label for="interleavedcount">确认间隔:</label>
-					<input type="number" id="interleavedcount" value="50" min="0" max="500">
-				</div>
-			</div>
-			<div class="status-bar"><b>状态：</b><span id="status"></span></div>
-			<div class="flex-container">
-				<div class="flex-group">
-					<button type="button" class="secondary debug" onclick="rotateCanvas()">旋转画布</button>
-					<button type="button" class="secondary" onclick="clearCanvas()">清除画布</button>
-					<button type="button" class="secondary debug" onclick="downloadDataArray()">下载数组</button>
-					<button id="sendimgbutton" type="button" class="primary" onclick="sendimg()">发送图片</button>
-				</div>
-			</div>
-			<div class="canvas-container">
-				<div class="canvas-title"></div>
-				<canvas id="canvas" width="400" height="300"></canvas>
-				<div class="flex-container canvas-tools">
-					<div class="flex-group tool-buttons">
-						<button id="brush-mode" title="画笔" class="tool-button">✏️</button>
-						<button id="eraser-mode" title="橡皮擦" class="tool-button">🧽</button>
-						<button id="text-mode" title="添加文字" class="tool-button">T</button>
-						<button id="undo-btn" title="撤销 (Ctrl+Z)" class="tool-button hide">↶</button>
-						<button id="redo-btn" title="重做 (Ctrl+Y)" class="tool-button hide">↷</button>
-					</div>
-				</div>
-				<div class="flex-container canvas-tools">
-					<div class="flex-group brush-tools">
-						<label for="brush-color">颜色:</label>
-						<select id="brush-color">
-							<option value="#000000">黑色</option>
-							<option value="#FF0000">红色</option>
-							<option value="#FFFF00">黄色</option>
-							<option value="#00FF00">绿色</option>
-							<option value="#0000FF">蓝色</option>
-							<option value="#FFFFFF">白色</option>
-						</select>
-						<label for="brush-size">粗细:</label>
-						<input type="number" id="brush-size" value="2" min="1" max="100">
-					</div>
-				</div>
-				<div class="flex-container canvas-tools">
-					<div class="flex-group text-tools">
-						<label for="font-family">字体:</label>
-						<select id="font-family">
-							<option value="Arial">Arial</option>
-							<option value="sans-serif">Sans-serif</option>
-							<option value="monospace">Monospace</option>
-							<option value="SimSun">宋体</option>
-							<option value="SimHei">黑体</option>
-							<option value="Microsoft Yahei">微软雅黑</option>
-							<option value="Microsoft JhengHei">微软正黑体</option>
-							<option value="KaiTi">楷体</option>
-							<option value="NSimSun">新宋体</option>
-							<option value="FangSong">仿宋</option>
-							<option value="YouYuan">幼圆</option>
-							<option value="LiSu">隶书</option>
-							<option value="STHeiti">华文黑体</option>
-							<option value="STXihei">华文细黑</option>
-							<option value="STKaiti">华文楷体</option>
-							<option value="STSong">华文宋体</option>
-							<option value="STFangsong">华文仿宋</option>
-							<option value="STZhongsong">华文中宋</option>
-							<option value="STHupo">华文琥珀</option>
-							<option value="STXinwei">华文新魏</option>
-							<option value="STLiti">华文隶书</option>
-							<option value="STXingkai">华文行楷</option>
-							<option value="FZShuTi">方正舒体</option>
-							<option value="FZYaoti">方正姚体</option>
-							<option value="PingFang SC">苹方</option>
-							<option value="Source Han Sans CN">思源黑体</option>
-							<option value="Source Han Serif SC">思源宋体</option>
-							<option value="WenQuanYi Micro Hei">文泉驿微米黑</option>
-							</optgroup>
-						</select>
-						<label for="font-size">大小:</label>
-						<input type="number" id="font-size" value="16" min="1" max="100">
-					</div>
-					<div class="flex-group text-tools">
-						<input type="text" id="text-input" placeholder="输入文字" style="width:150px">
-						<button id="text-bold" title="粗体">B</button>
-						<button id="text-italic" title="斜体">I</button>
-						<button id="add-text-btn" class="primary">添加文字</button>
-					</div>
-					<div class="flex-group crop-tools">
-						<button id="crop-zoom-in" title="放大" class="secondary">+</button>
-						<button id="crop-zoom-out" title="缩小" class="secondary">-</button>
-						<button id="crop-move-left" title="左移">⇦</button>
-						<button id="crop-move-up" title="上移">⇧</button>
-						<button id="crop-move-down" title="下移">⇩</button>
-						<button id="crop-move-right" title="右移">⇨</button>
-						<button class="primary" onclick="applyDither()">完成</button>
-					</div>
-				</div>
-			</div>
-		</fieldset>
-		<div class="footer">
-			<span class="copy">&copy; 2025 tsl0922.</span>
-			<span class="links">
-				<a href="https://github.com/tsl0922/EPD-nRF5">Github</a>
-				<a href="https://qm.qq.com/q/SckzhfDxuu" onclick="return confirm('本群是此开源固件作者的技术交流群\n如果你购买了成品，请找卖家提供售后！')">交流群</a>
-				<a href="?debug=true" id="debug-toggle">开发模式</a>
-			</span>
-		</div>
-	</div>
-	<script type="text/javascript" src="js/dithering.js?v=20251109"></script>
-	<script type="text/javascript" src="js/paint.js?v=20251109"></script>
-	<script type="text/javascript" src="js/crop.js?v=20251109"></script>
-	<script type="text/javascript" src="js/main.js?v=20251109"></script>
-	<script>
-		var _hmt = _hmt || [];
-		(function () {
-			var hm = document.createElement("script");
-			hm.src = "https://hm.baidu.com/hm.js?c5949ebea1f35f725f7b05fcce462b61";
-			var s = document.getElementsByTagName("script")[0];
-			s.parentNode.insertBefore(hm, s);
-		})();
-	</script>
+                <label>抖动算法:</label>
+                <select id="ditherAlgo">
+                    <option value="floyd">Floyd-Steinberg</option>
+                    <option value="atkinson">Atkinson</option>
+                    <option value="bayer">Bayer</option>
+                    <option value="none">无抖动</option>
+                </select>
 
+                <label>亮度: <span id="brightnessVal">1.0</span></label>
+                <input type="range" id="brightness" min="0.5" max="2.0" step="0.1" value="1.0" oninput="document.getElementById('brightnessVal').textContent=this.value; processImage()">
+
+                <label>对比度: <span id="contrastVal">1.2</span></label>
+                <input type="range" id="contrast" min="0.5" max="3.0" step="0.1" value="1.2" oninput="document.getElementById('contrastVal').textContent=this.value; processImage()">
+
+                <div class="row mt-8">
+                    <button class="btn-primary" onclick="processImage()">🔄 刷新预览</button>
+                    <button class="btn-success" id="btnUpload" onclick="uploadImage()" disabled>📤 上传到设备</button>
+                </div>
+            </div>
+            <div class="upload-right">
+                <label>预览 (实际效果):</label>
+                <div class="canvas-container" id="canvasContainer">
+                    <div class="placeholder" id="canvasPlaceholder">请先选择图片</div>
+                    <canvas id="previewCanvas" style="display:none"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 日志 -->
+    <div class="card">
+        <h2>📋 日志</h2>
+        <div class="log-area" id="logArea"></div>
+        <button class="btn-secondary mt-8" onclick="clearLog()">清除日志</button>
+    </div>
+</div>
+
+<script>
+// ============================================================================
+// BLE通信核心
+// ============================================================================
+const EPD_SERVICE_UUID = '62750001-d828-918d-fb46-b6c11c675aec';
+const EPD_DATA_UUID = '62750002-d828-918d-fb46-b6c11c675aec';
+const EPD_VERSION_UUID = '62750003-d828-918d-fb46-b6c11c675aec';
+
+const EpdCmd = {
+    INIT: 0x01, CLEAR: 0x02, SEND_CMD: 0x03, SEND_DATA: 0x04,
+    REFRESH: 0x05, SLEEP: 0x06, SET_TIME: 0x20, WRITE_IMG: 0x30,
+    SYS_RESET: 0x91, SYS_SLEEP: 0x92,
+};
+
+let bleDevice = null;
+let gattServer = null;
+let epdService = null;
+let epdChar = null;
+let isConnected = false;
+let deviceMTU = 20;
+let processedImageData = null;
+
+// 日志
+function log(msg, type = 'info') {
+    const area = document.getElementById('logArea');
+    const time = new Date().toLocaleTimeString();
+    area.innerHTML += `<div class="${type}">[${time}] ${msg}</div>`;
+    area.scrollTop = area.scrollHeight;
+}
+function clearLog() { document.getElementById('logArea').innerHTML = ''; }
+
+// BLE连接
+async function connectBLE() {
+    try {
+        log('正在扫描BLE设备...');
+        bleDevice = await navigator.bluetooth.requestDevice({
+            optionalServices: [EPD_SERVICE_UUID],
+            acceptAllDevices: true,
+        });
+        log(`找到设备: ${bleDevice.name || bleDevice.id}`);
+
+        bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+        gattServer = await bleDevice.gatt.connect();
+        log('GATT连接成功', 'success');
+
+        epdService = await gattServer.getPrimaryService(EPD_SERVICE_UUID);
+        epdChar = await epdService.getCharacteristic(EPD_DATA_UUID);
+
+        // 启用通知
+        await epdChar.startNotifications();
+        epdChar.addEventListener('characteristicvaluechanged', onNotify);
+
+        // 读取固件版本
+        try {
+            const verChar = await epdService.getCharacteristic(EPD_VERSION_UUID);
+            const verData = await verChar.readValue();
+            const major = (verData.getUint8(0) >> 4) & 0x0F;
+            const minor = verData.getUint8(0) & 0x0F;
+            document.getElementById('fwVersion').textContent = `v${major}.${minor}`;
+            log(`固件版本: v${major}.${minor}`, 'success');
+        } catch (e) {
+            log('读取版本失败 (可能不支持)', 'warn');
+        }
+
+        setConnected(true);
+        log('BLE连接完成!', 'success');
+    } catch (e) {
+        log(`连接失败: ${e.message}`, 'error');
+        setConnected(false);
+    }
+}
+
+function disconnectBLE() {
+    if (bleDevice && bleDevice.gatt.connected) {
+        bleDevice.gatt.disconnect();
+    }
+}
+
+function onDisconnected() {
+    log('设备已断开', 'warn');
+    setConnected(false);
+}
+
+function setConnected(connected) {
+    isConnected = connected;
+    document.getElementById('statusDot').className = 'status-dot' + (connected ? ' connected' : '');
+    document.getElementById('statusText').textContent = connected ? '已连接' : '未连接';
+    document.getElementById('btnConnect').style.display = connected ? 'none' : '';
+    document.getElementById('btnDisconnect').style.display = connected ? '' : 'none';
+    document.getElementById('deviceInfo').style.display = connected ? '' : 'none';
+    document.getElementById('btnUpload').disabled = !connected;
+}
+
+// 通知处理
+function onNotify(event) {
+    const data = event.target.value;
+    const bytes = new Uint8Array(data.buffer);
+
+    // 尝试解析为文本
+    try {
+        const text = new TextDecoder().decode(bytes);
+        if (text.startsWith('mtu=')) {
+            deviceMTU = parseInt(text.substring(4));
+            document.getElementById('mtuSize').textContent = deviceMTU;
+            log(`MTU: ${deviceMTU}`, 'info');
+        } else if (text.startsWith('t=')) {
+            const ts = parseInt(text.substring(2));
+            const date = new Date(ts * 1000);
+            document.getElementById('devTime').textContent = date.toLocaleString('zh-CN');
+            log(`设备时间: ${date.toLocaleString('zh-CN')}`, 'info');
+        } else {
+            log(`通知: ${text}`, 'info');
+        }
+    } catch (e) {
+        log(`通知 (${bytes.length}字节): ${Array.from(bytes).map(b => b.toString(16).padStart(2,'0')).join(' ')}`, 'info');
+    }
+}
+
+// 写入数据
+async function write(cmd, data = null, withResponse = false) {
+    if (!isConnected) throw new Error('未连接');
+    const payload = data ? new Uint8Array([cmd, ...data]) : new Uint8Array([cmd]);
+    if (withResponse) {
+        await epdChar.writeValueWithResponse(payload);
+    } else {
+        await epdChar.writeValueWithoutResponse(payload);
+    }
+}
+
+// ============================================================================
+// 设备控制
+// ============================================================================
+
+async function setMode(mode) {
+    try {
+        const timestamp = Math.floor(Date.now() / 1000);
+        const tz = -(new Date().getTimezoneOffset() / 60);
+        const data = [
+            (timestamp >> 24) & 0xFF, (timestamp >> 16) & 0xFF,
+            (timestamp >> 8) & 0xFF, timestamp & 0xFF,
+            tz, mode
+        ];
+        await write(EpdCmd.SET_TIME, data, true);
+        const modeNames = { 1: '日历', 2: '时钟', 3: '图片' };
+        log(`切换到${modeNames[mode] || mode}模式`, 'success');
+    } catch (e) {
+        log(`模式切换失败: ${e.message}`, 'error');
+    }
+}
+
+async function syncTime(mode = 2) {
+    await setMode(mode);
+}
+
+async function clearScreen() {
+    try {
+        await write(EpdCmd.CLEAR, null, true);
+        log('清屏命令已发送', 'success');
+    } catch (e) {
+        log(`清屏失败: ${e.message}`, 'error');
+    }
+}
+
+async function resetDevice() {
+    try {
+        await write(EpdCmd.SYS_RESET, null, true);
+        log('重启命令已发送', 'warn');
+    } catch (e) {
+        log(`重启失败: ${e.message}`, 'error');
+    }
+}
+
+// ============================================================================
+// 图片处理
+// ============================================================================
+
+function updateCanvasSize() {
+    processImage();
+}
+
+function loadImage(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+            processImage(img);
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function processImage(srcImg) {
+    const canvas = document.getElementById('previewCanvas');
+    const ctx = canvas.getContext('2d');
+    const sizeStr = document.getElementById('canvasSize').value;
+    const [cw, ch] = sizeStr.split(',').map(Number);
+
+    canvas.width = cw;
+    canvas.height = ch;
+    canvas.style.display = '';
+    document.getElementById('canvasPlaceholder').style.display = 'none';
+
+    if (!srcImg) {
+        // 从已加载的图片重新处理
+        const fileInput = document.getElementById('fileInput');
+        if (!fileInput.files[0]) return;
+        const img = new Image();
+        img.onload = () => doProcessImage(img, canvas, ctx, cw, ch);
+        img.src = URL.createObjectURL(fileInput.files[0]);
+    } else {
+        doProcessImage(srcImg, canvas, ctx, cw, ch);
+    }
+}
+
+function doProcessImage(img, canvas, ctx, cw, ch) {
+    const brightness = parseFloat(document.getElementById('brightness').value);
+    const contrast = parseFloat(document.getElementById('contrast').value);
+    const algo = document.getElementById('ditherAlgo').value;
+
+    // 缩放图片到画布尺寸
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, cw, ch);
+
+    // 居中裁剪
+    const scale = Math.max(cw / img.width, ch / img.height);
+    const sw = cw / scale;
+    const sh = ch / scale;
+    const sx = (img.width - sw) / 2;
+    const sy = (img.height - sh) / 2;
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
+
+    // 获取像素数据
+    const imageData = ctx.getImageData(0, 0, cw, ch);
+    const pixels = imageData.data;
+
+    // 应用亮度和对比度
+    for (let i = 0; i < pixels.length; i += 4) {
+        let r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+        // 亮度
+        r *= brightness; g *= brightness; b *= brightness;
+        // 对比度
+        r = ((r / 255 - 0.5) * contrast + 0.5) * 255;
+        g = ((g / 255 - 0.5) * contrast + 0.5) * 255;
+        b = ((b / 255 - 0.5) * contrast + 0.5) * 255;
+        pixels[i] = Math.max(0, Math.min(255, r));
+        pixels[i + 1] = Math.max(0, Math.min(255, g));
+        pixels[i + 2] = Math.max(0, Math.min(255, b));
+    }
+
+    // 灰度化
+    const gray = new Float32Array(cw * ch);
+    for (let i = 0; i < cw * ch; i++) {
+        gray[i] = 0.299 * pixels[i * 4] + 0.587 * pixels[i * 4 + 1] + 0.114 * pixels[i * 4 + 2];
+    }
+
+    // 抖动
+    const mono = new Uint8Array(cw * ch);
+    if (algo === 'floyd') {
+        ditherFloydSteinberg(gray, mono, cw, ch);
+    } else if (algo === 'atkinson') {
+        ditherAtkinson(gray, mono, cw, ch);
+    } else if (algo === 'bayer') {
+        ditherBayer(gray, mono, cw, ch);
+    } else {
+        for (let i = 0; i < gray.length; i++) mono[i] = gray[i] > 128 ? 1 : 0;
+    }
+
+    // 渲染到画布
+    for (let i = 0; i < mono.length; i++) {
+        const v = mono[i] ? 0 : 255;
+        pixels[i * 4] = v;
+        pixels[i * 4 + 1] = v;
+        pixels[i * 4 + 2] = v;
+    }
+    ctx.putImageData(imageData, 0, 0);
+
+    // 转换为1-bit位图数据 (MSB在上)
+    const bitmapData = new Uint8Array(Math.ceil(cw * ch / 8));
+    bitmapData.fill(0xFF); // 默认全白
+    for (let i = 0; i < mono.length; i++) {
+        if (!mono[i]) { // 黑色像素
+            bitmapData[Math.floor(i / 8)] &= ~(1 << (7 - (i % 8)));
+        }
+    }
+
+    processedImageData = bitmapData;
+    document.getElementById('btnUpload').disabled = !isConnected;
+    log(`图片处理完成: ${cw}×${ch}, ${bitmapData.length}字节`, 'success');
+}
+
+// Floyd-Steinberg 抖动
+function ditherFloydSteinberg(gray, mono, w, h) {
+    const buf = new Float32Array(gray);
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const idx = y * w + x;
+            const old = buf[idx];
+            const val = old < 128 ? 0 : 255;
+            mono[idx] = val;
+            const err = old - val;
+            if (x + 1 < w) buf[idx + 1] += err * 7 / 16;
+            if (y + 1 < h) {
+                if (x - 1 >= 0) buf[(y + 1) * w + x - 1] += err * 3 / 16;
+                buf[(y + 1) * w + x] += err * 5 / 16;
+                if (x + 1 < w) buf[(y + 1) * w + x + 1] += err * 1 / 16;
+            }
+        }
+    }
+}
+
+// Atkinson 抖动
+function ditherAtkinson(gray, mono, w, h) {
+    const buf = new Float32Array(gray);
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const idx = y * w + x;
+            const old = buf[idx];
+            const val = old < 128 ? 0 : 255;
+            mono[idx] = val;
+            const err = (old - val) / 8;
+            if (x + 1 < w) buf[idx + 1] += err;
+            if (x + 2 < w) buf[idx + 2] += err;
+            if (y + 1 < h) {
+                if (x - 1 >= 0) buf[(y + 1) * w + x - 1] += err;
+                buf[(y + 1) * w + x] += err;
+                if (x + 1 < w) buf[(y + 1) * w + x + 1] += err;
+            }
+            if (y + 2 < h) buf[(y + 2) * w + x] += err;
+        }
+    }
+}
+
+// Bayer 抖动
+function ditherBayer(gray, mono, w, h) {
+    const matrix = [
+        [0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]
+    ];
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const threshold = (matrix[y % 4][x % 4] / 16) * 255;
+            mono[y * w + x] = gray[y * w + x] > threshold ? 1 : 0;
+        }
+    }
+}
+
+// ============================================================================
+// 图片上传
+// ============================================================================
+
+async function uploadImage() {
+    if (!processedImageData || !isConnected) return;
+
+    try {
+        // INIT
+        log('初始化EPD...');
+        await write(EpdCmd.INIT, null, true);
+        await sleep(100);
+
+        // 发送图像数据
+        const data = processedImageData;
+        const chunkSize = deviceMTU - 2;
+        const total = data.length;
+        const bar = document.getElementById('progressBar');
+        const fill = document.getElementById('progressFill');
+        const text = document.getElementById('progressText');
+
+        bar.style.display = '';
+        log(`开始传输: ${total}字节, 块大小=${chunkSize}`);
+
+        for (let i = 0; i < total; i += chunkSize) {
+            const end = Math.min(i + chunkSize, total);
+            const chunk = data.slice(i, end);
+            const isFirst = (i === 0);
+            const cfg = 0x0F | (isFirst ? 0x00 : 0xF0);
+            const payload = new Uint8Array([EpdCmd.WRITE_IMG, cfg, ...chunk]);
+
+            // 每50个包做一次流控
+            if ((i / chunkSize) % 50 === 0 && i > 0) {
+                await epdChar.writeValueWithResponse(payload);
+            } else {
+                await epdChar.writeValueWithoutResponse(payload);
+            }
+
+            const pct = Math.round((end / total) * 100);
+            fill.style.width = pct + '%';
+            text.textContent = `${end}/${total} (${pct}%)`;
+        }
+
+        // REFRESH
+        log('刷新显示...');
+        await write(EpdCmd.REFRESH, null, true);
+
+        fill.style.width = '100%';
+        text.textContent = '传输完成!';
+        log('图片上传完成!', 'success');
+
+        setTimeout(() => {
+            bar.style.display = 'none';
+            fill.style.width = '0%';
+            text.textContent = '';
+        }, 3000);
+    } catch (e) {
+        log(`上传失败: ${e.message}`, 'error');
+    }
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// 页面加载
+window.addEventListener('load', () => {
+    log('DA14585 墨水屏时钟上位机已就绪');
+    log('请点击"连接设备"开始', 'info');
+    if (!navigator.bluetooth) {
+        log('⚠ 当前浏览器不支持Web Bluetooth API', 'error');
+        log('请使用Chrome/Edge浏览器并确保HTTPS或localhost', 'error');
+    }
+});
+</script>
 </body>
-
 </html>
